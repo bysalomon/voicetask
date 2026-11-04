@@ -8,9 +8,12 @@ port = 54323
 [auth]
 enable_signup = false
 [auth.email]
-enable_signup = true
+enabled = true
 enable_confirmations = true
 [functions.accept-invite]
 verify_jwt = false
 [functions.webhook-paypal]
 verify_jwt = false
+
+[local_smtp]
+enabled = false

@@ -22,7 +22,7 @@ jobs:
       - run: supabase db push
       - name: Deploy guarded edge functions
         run: |
-          for fn in create-invitation admin-create-task recording-upload identity-upload admin-action admin-recording-playback admin-document-playback review-audio admin-user-action register-payout-destination process-payout; do
+          for fn in create-invitation admin-create-task recording-upload identity-upload admin-action admin-recording-playback admin-document-playback review-audio admin-user-action admin-task-action admin-export register-payout-destination process-payout; do
             supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_ID"
           done
           supabase functions deploy scheduled-maintenance --no-verify-jwt --project-ref "$SUPABASE_PROJECT_ID"

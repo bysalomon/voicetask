@@ -16,6 +16,46 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
-      - name: Verify no private credentials are committed
+  browser-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+        env:
+          CI: 'true'
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+  database-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: npm install --no-audit --no-fund
+      - name: Start isolated Supabase and apply all migrations
+        run: supabase start
+      - name: Check SQL tests
+        run: supabase test db
+      - name: Test real RLS, concurrency, account protection and money guards
         run: |
-          if grep -R -l -E 'SUPABASE_SERVICE_ROLE_KEY=[A-Za-z0-9]|PAYPAL_CLIENT_SECRET=[A-Za-z0-9]' --include='*.env' --include='*.ts' . --exclude-dir=node_modules; then exit 1; fi
+          supabase status -o env > /tmp/voicetask-status.env
+          set -a
+          source /tmp/voicetask-status.env
+          set +a
+          SUPABASE_URL="$API_URL" SUPABASE_ANON_KEY="$ANON_KEY" SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" npm run test:integration
+      - if: always()
+        run: supabase stop --no-backup

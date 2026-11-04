@@ -9,7 +9,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e": "playwright test",
+    "test:integration": "node --test tests/integration/*.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.0",
@@ -33,6 +35,7 @@
     "eslint": "^9.19.0",
     "typescript-eslint": "^8.21.0",
     "eslint-plugin-react-hooks": "^5.1.0",
-    "globals": "^15.14.0"
+    "globals": "^15.14.0",
+    "@playwright/test": "^1.55.0"
   }
 }

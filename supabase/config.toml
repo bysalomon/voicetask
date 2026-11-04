@@ -1,0 +1,18 @@
+project_id = "voicetask"
+[api]
+port = 54321
+[db]
+port = 54322
+[studio]
+port = 54323
+[inbucket]
+port = 54324
+[auth]
+enable_signup = false
+[auth.email]
+enable_signup = false
+enable_confirmations = true
+[functions.accept-invite]
+verify_jwt = false
+[functions.webhook-paypal]
+verify_jwt = false

@@ -38,3 +38,25 @@ jobs:
           grep -qiF "access-control-allow-origin: $origin" "$headers"
           grep -q 'Invalid registration details' "$response"
           echo 'PASS: Live staging invitation endpoint accepts configured CORS origin and rejects invalid registration.'
+      - name: Confirm Resend configuration is available without consuming an invitation
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint='https://mlypusfsxafsdnnzquek.supabase.co/functions/v1/accept-invite'
+          origin='https://voicetask-staging.vercel.app'
+          response="$(mktemp)"
+          # All registration fields valid, but the invitation is deliberately impossible.
+          # This probe does NOT create an Auth user, send email, or redeem a real token.
+          code="$(curl --silent --show-error --max-time 30 \
+            --output "$response" --write-out '%{http_code}' \
+            -X POST "$endpoint" -H "Origin: $origin" \
+            -H 'Content-Type: application/json' \
+            --data '{"pin":"12345678","email":"nobody@example.invalid","country":"GB","full_name":"Staging Probe","mobile":"+440000000000","consents":{"terms":true,"privacy":true,"data_use":true,"age_18":true},"token":"0000000000000000000000000000000000000000000000000000000000000000"}')"
+          echo "Configured provider probe status: $code"
+          test "$code" = '400'
+          if ! grep -q 'This invitation has expired or has already been used' "$response"; then
+            echo 'FAIL: Email provider is not configured or the invite validation path did not reach the token lookup.'
+            exit 1
+          fi
+          echo 'PASS: Live function has email provider configured and rejects an unknown invite. No account was created.'
+

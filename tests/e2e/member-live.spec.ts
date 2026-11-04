@@ -11,7 +11,7 @@ test('@live member: real Supabase login, allocation, audio upload, submission an
  await page.goto('/app/tasks');
  await expect(page.getByRole('heading',{name:'Available tasks'})).toBeVisible();
  await expect(page.getByText('Browser audio upload exercise')).toBeVisible({timeout:15000});
- await page.getByRole('link',{name:/Start task/i}).first().click();
+ await page.locator('.taskRow').filter({hasText:'Browser audio upload exercise'}).getByRole('link',{name:/Start task/i}).click();
  await expect(page.getByText('I am so happy to record this sentence today.')).toBeVisible();
  await page.getByRole('button',{name:'Record',exact:true}).click();
  await expect(page.getByText('Recording in progress')).toBeVisible();

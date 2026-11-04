@@ -1,5 +1,53 @@
 import {useState,type FormEvent} from 'react';import {Link} from 'react-router-dom';import {useQuery,useQueryClient} from '@tanstack/react-query';import {ShieldCheck,ArrowRight,CheckCircle2,Trophy,Settings,UserRound} from 'lucide-react';import {supabase,pounds,duration,dates,levels} from '../lib/core';import {useAuth} from '../context/Auth';
-export function WalletPage(){const {user}=useAuth();const {data,refetch}=useQuery({queryKey:['wallet',user?.id],enabled:!!user,queryFn:async()=>{const [w,l,v,p]=await Promise.all([supabase.from('wallet_accounts').select('*').eq('user_id',user!.id).maybeSingle(),supabase.from('wallet_ledger_entries').select('*').eq('user_id',user!.id).order('created_at',{ascending:false}).limit(50),supabase.from('identity_verifications').select('status').eq('user_id',user!.id).order('submitted_at',{ascending:false}).limit(1),supabase.from('payout_destinations').select('id,masked_display,type,verified').eq('user_id',user!.id)]);return {wallet:w.data,ledger:l.data||[],kyc:v.data?.[0]?.status,destinations:p.data||[]}}});const available=data?.wallet?.available_pence||0;const [dest,setDest]=useState('');const [amount,setAmount]=useState('250.00');const [message,setMessage]=useState('');async function withdraw(e:FormEvent){e.preventDefault();const pence=Math.round(Number(amount)*100);const {error}=await supabase.rpc('request_my_withdrawal',{p_amount_pence:pence,p_destination_id:dest,p_idempotency_key:crypto.randomUUID()});setMessage(error?error.message:'Your withdrawal request has been received and is awaiting review.');void refetch()};return <><div className="pageHeading"><div><span className="eyebrow">ACCOUNT FINANCES</span><h1>Wallet</h1><p>Approved earnings and withdrawal activity.</p></div></div><div className="walletHero"><span>Available balance</span><strong>{pounds(available)}</strong><p>Reserved funds {pounds(data?.wallet?.reserved_pence||0)}</p><div className="progressTrack"><div style={{width:Math.min(100,available/25000*100)+'%'}}/></div><small>{pounds(available)} of £250.00 minimum withdrawal</small></div><div className="lowerGrid"><section className="panel"><h2>Request withdrawal</h2>{data?.kyc!=='verified'?<div className="notice"><ShieldCheck size={19}/> Identity verification is required before withdrawals. <Link to="/app/profile#identity-verification">Verify your identity <ArrowRight size={14}/></Link></div>:available<25000?<div className="notice">You need at least £250.00 in your available balance to request a withdrawal.</div>:<form onSubmit={e=>void withdraw(e)} className="formStack"><label>Verified payment destination<select required value={dest} onChange={e=>setDest(e.target.value)}><option value="">Select a destination</option>{data.destinations.filter(d=>d.verified).map(d=><option key={d.id} value={d.id}>{d.type}: {d.masked_display}</option>)}</select></label><label>Amount in GBP<input type="number" min="250" max={available/100} step=".01" required value={amount} onChange={e=>setAmount(e.target.value)}/></label><p className="muted">Payouts require an enabled payment provider. Approval alone does not confirm a payment.</p><button className="primary">Request withdrawal</button></form>}{message&&<p role="status">{message}</p>}</section><section className="panel"><h2>Transaction history</h2>{data?.ledger.length?data.ledger.map(e=><div className="listLine" key={e.id}><div><strong>{e.entry_type.replaceAll('_',' ')}</strong><small>{dates(e.created_at)}</small></div><strong>{pounds(e.amount_pence)}</strong></div>):<div className="emptyState">No transactions yet.</div>}</section></div></>}
+export function WalletPage(){
+ const {user}=useAuth();const {data,refetch}=useQuery({queryKey:['wallet',user?.id],enabled:!!user,queryFn:async()=>{
+  const [w,l,v,p]=await Promise.all([
+   supabase.from('wallet_accounts').select('*').eq('user_id',user!.id).maybeSingle(),
+   supabase.from('wallet_ledger_entries').select('*').eq('user_id',user!.id).order('created_at',{ascending:false}).limit(50),
+   supabase.from('identity_verifications').select('status').eq('user_id',user!.id).order('submitted_at',{ascending:false}).limit(1),
+   supabase.from('payout_destinations').select('id,masked_display,type,verified').eq('user_id',user!.id)]);
+  for(const x of [w,l,v,p])if(x.error)throw x.error;
+  return {wallet:w.data,ledger:l.data||[],kyc:v.data?.[0]?.status,destinations:p.data||[]}
+ }});
+ const available=data?.wallet?.available_pence||0;const [dest,setDest]=useState('');const [amount,setAmount]=useState('250.00');
+ const [recipient,setRecipient]=useState('');const [message,setMessage]=useState('');const [busy,setBusy]=useState(false);
+ async function withdraw(e:FormEvent){
+  e.preventDefault();const pence=Math.round(Number(amount)*100);
+  if(!Number.isSafeInteger(pence)||pence<25000||pence>available){setMessage('Enter an eligible withdrawal amount.');return}
+  setBusy(true);
+  const {error}=await supabase.rpc('request_my_withdrawal',{p_amount_pence:pence,p_destination_id:dest,p_idempotency_key:crypto.randomUUID()});
+  setMessage(error?.message||'Your withdrawal has been reserved and submitted for provider processing.');
+  await refetch();setBusy(false);
+ }
+ async function register(e:FormEvent){
+  e.preventDefault();setBusy(true);setMessage('');
+  const {error,result}=await (async()=>{const r=await supabase.functions.invoke('register-payout-destination',{body:{type:'paypal',email:recipient}});return {error:r.error,result:r.data}})();
+  setMessage(error?.message||result?.message||'Recipient registration requested');
+  if(!error){setRecipient('');await refetch()}setBusy(false);
+ }
+ const eligible=data?.kyc==='verified'&&available>=25000&&data.destinations.some(d=>d.verified);
+ return <><div className="pageHeading"><div><span className="eyebrow">ACCOUNT FINANCES</span><h1>Wallet</h1><p>Approved earnings, reserved amounts and payment destinations.</p></div></div>
+ <div className="walletHero"><span>Available balance</span><strong>{pounds(available)}</strong><p>Reserved funds {pounds(data?.wallet?.reserved_pence||0)}</p>
+ <div className="progressTrack"><div style={{width:Math.min(100,available/25000*100)+'%'}}/></div><small>{pounds(available)} of £250.00 minimum withdrawal</small></div>
+ <div className="lowerGrid"><section className="panel formStack"><h2>Request withdrawal</h2>
+ {data?.kyc!=='verified'?<div className="notice"><ShieldCheck size={19}/> Identity verification must be completed before withdrawal. <Link to="/app/profile#identity-verification">Verify identity <ArrowRight size={14}/></Link></div>:
+ available<25000?<div className="notice">You need at least £250.00 in approved available earnings to request a withdrawal.</div>:
+ !data.destinations.some(d=>d.verified)?<div className="notice">Your payment recipient has not yet passed provider verification. Set up a destination below.</div>:null}
+ <form onSubmit={e=>void withdraw(e)} className="formStack">
+ <label>Verified payment destination<select required value={dest} onChange={e=>setDest(e.target.value)}><option value="">Select a verified destination</option>{data?.destinations.filter(d=>d.verified).map(d=><option key={d.id} value={d.id}>{d.type}: {d.masked_display}</option>)}</select></label>
+ <label>Amount in GBP<input type="number" min="250" max={available/100} step=".01" required value={amount} onChange={e=>setAmount(e.target.value)}/></label>
+ <p className="muted">A payout requires verified identity and a provider-approved recipient. Money is reserved atomically, and is only marked paid following provider confirmation.</p>
+ <button className="primary" disabled={busy||!eligible||!dest}>{busy?'Submitting…':'Request withdrawal'}</button>
+ </form></section>
+ <section className="panel formStack"><h2>Payment destinations</h2>
+ {data?.destinations.map(d=><div className="listLine" key={d.id}><div><strong>{d.type==='paypal'?'PayPal':'Bank'} · {d.masked_display}</strong><small>{d.verified?'Recipient verified':'Awaiting provider verification'}</small></div></div>)}
+ <form onSubmit={e=>void register(e)} className="formStack"><label>PayPal recipient email<input type="email" required value={recipient} onChange={e=>setRecipient(e.target.value)} placeholder="name@example.com"/></label>
+ <button className="outlineButton" disabled={busy}>Register PayPal destination</button></form>
+ <p className="muted">Bank transfer requires an authorised banking provider. This option remains unavailable until the provider is approved and integrated. A verified email does not itself verify a PayPal account.</p>
+ </section></div>
+ <section className="panel"><h2>Transaction history</h2>{data?.ledger.length?data.ledger.map(e=><div className="listLine" key={e.id}><div><strong>{e.entry_type.replaceAll('_',' ')}</strong><small>{dates(e.created_at)}</small></div><strong>{pounds(e.amount_pence)}</strong></div>):<div className="emptyState">No transactions yet.</div>}</section>
+ {message&&<p role="status" className="notice">{message}</p>}</>
+}
 export function ProfilePage(){
  const {user}=useAuth();const qc=useQueryClient();
  const {data}=useQuery({queryKey:['profile',user?.id],enabled:!!user,queryFn:async()=>{

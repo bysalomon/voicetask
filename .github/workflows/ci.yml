@@ -1,0 +1,22 @@
+name: VoiceTask CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - name: Verify no private credentials are committed
+        run: |
+          if grep -R -l -E 'SUPABASE_SERVICE_ROLE_KEY=[A-Za-z0-9]|PAYPAL_CLIENT_SECRET=[A-Za-z0-9]' --include='*.env' --include='*.ts' . --exclude-dir=node_modules; then exit 1; fi

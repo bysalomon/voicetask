@@ -1,0 +1,46 @@
+name: Deploy VoiceTask
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  supabase:
+    if: ${{ vars.ENABLE_PRODUCTION_DEPLOY == 'true' }}
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: test -n "$SUPABASE_PROJECT_ID" && test -n "$SUPABASE_ACCESS_TOKEN" && test -n "$SUPABASE_DB_PASSWORD"
+      - run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
+      - run: supabase db push
+      - name: Deploy guarded edge functions
+        run: |
+          for fn in accept-invite create-invitation admin-create-task recording-upload identity-upload admin-action scheduled-maintenance admin-recording-playback admin-document-playback; do
+            supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_ID"
+          done
+  frontend:
+    if: ${{ vars.ENABLE_PRODUCTION_DEPLOY == 'true' }}
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+      - run: test -n "$VERCEL_TOKEN" && test -n "$VERCEL_ORG_ID" && test -n "$VERCEL_PROJECT_ID"
+      - run: npx vercel deploy --prod --prebuilt --token "$VERCEL_TOKEN"

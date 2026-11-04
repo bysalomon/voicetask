@@ -1,15 +1,25 @@
-# Provider setup: secrets only
+# VoiceTask — configure secrets using provider dashboards only
 
-## Local frontend
+Never paste secrets into chat, GitHub issues, frontend `VITE_` variables or a public repository.
 
-Provide only the publishable values `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. **Never** put service-role keys, API passwords, payout tokens or personal ID data in Vite env variables.
+## Supabase
 
-## Supabase Edge Function secrets
+Connect the approved production project and apply migrations in version order. Use Supabase Edge Function secrets for: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (normally supplied by the runtime), `ALLOWED_ORIGIN` (exact HTTPS web origin), `CRON_SECRET`, `DEEPGRAM_API_KEY` (optional real transcription and timed speech review), `RESEND_API_KEY`, `RESEND_FROM` (verified sender), `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_WEBHOOK_ID`, `PAYPAL_MODE` (sandbox/live only when authorised). No provider credentials are bundled.
 
-Configure in Supabase's secrets manager: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (provisioned securely), `ALLOWED_ORIGIN` (your verified HTTPS domain), `RESEND_API_KEY`, `RESEND_FROM`, `CRON_SECRET`. Delivery domain must be verified. Identity review and speech validation providers require server-only credentials when selected; no provider is silently assumed enabled.
+Enable Supabase Auth email login with email confirmation, invitation-only public signup prohibition, device/OTP protection, server rate limiting, CAPTCHA/abuse prevention and tested recovery. Create administrator identity through private console and require AAL2 MFA. Set JWT and session durations appropriate to the risk.
 
-## GitHub Actions
+An approved external identity provider and licensed bank payout provider are **not selected or activated**: document/manual-review and bank payout pathways must remain guarded until proper vendors and contracts are in place. Confirm the user-country corridors before enabling payouts.
 
-Set protected environment `production` with approval policy; set repository variable `ENABLE_PRODUCTION_DEPLOY=true` **only after auditing**. Environment secrets: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `SUPABASE_PROJECT_ID`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`. Repository variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`.
+## GitHub environment `production`
 
-No secrets belong in commits or issues. Configure Supabase Auth email settings, allowed callback URLs, email-confirmation enforcement, rate limits, CAPTCHA, anti-abuse protections, and fully disable public account creation only after the invitation flow is verified.
+Configure these GitHub Actions **secrets** in a protected environment with required approvals: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `SUPABASE_PROJECT_ID`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `CRON_SECRET`.
+
+Configure safe GitHub **variables**: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_PROJECT_URL`, `ENABLE_PRODUCTION_DEPLOY` (default `false`), `ENABLE_MAINTENANCE` (default `false`).
+
+Trigger the manually approved `Deploy VoiceTask` workflow **only after** secrets and independent production RLS/data checks are complete. `Scheduled VoiceTask Maintenance` runs every five minutes only when the production enable variable and matching server-side `CRON_SECRET` are installed. A scheduled workflow does not itself activate an external ASR/KYC/payout provider.
+
+## Vercel
+
+Create/connect the Vite project in Vercel via the authorised dashboard. The CI deploy job performs `vercel pull`, `vercel build --prod`, and `vercel deploy --prebuilt --prod`; protect the domain and add the final HTTPS origin in Supabase Auth redirect allowlist and Edge Functions `ALLOWED_ORIGIN`.
+
+No private keys, document images, recordings or beneficiary banking credentials belong in a GitHub action log or the Vite build.

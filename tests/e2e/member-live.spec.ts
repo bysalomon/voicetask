@@ -7,7 +7,7 @@ test('@live member: real Supabase login, allocation, audio upload, submission an
  await page.getByLabel('8-digit access code').fill(process.env.E2E_TEST_PIN!);
  await page.getByRole('button',{name:'Sign in',exact:true}).click();
  await expect(page).toHaveURL(/\/app$/,{timeout:20000});
- await expect(page.getByRole('heading',{name:/VoiceTask Browser Test/i})).toBeVisible();
+ await expect(page.getByRole('heading',{name:/Good (morning|afternoon|evening), VoiceTask/i})).toBeVisible();
  await page.goto('/app/tasks');
  await expect(page.getByRole('heading',{name:'Available tasks'})).toBeVisible();
  await expect(page.getByText('Browser audio upload exercise')).toBeVisible({timeout:15000});

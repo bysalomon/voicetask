@@ -19,6 +19,14 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Check all Supabase Edge Functions
+        run: |
+          for file in supabase/functions/*/index.ts; do
+            deno check "$file"
+          done
   browser-e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 20

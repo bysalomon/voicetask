@@ -1,13 +1,21 @@
-# Database model
+# VoiceTask database
 
-Migrations are applied in order: `202611040001_initial.sql`, `202611040002_workflows.sql`, `202611040003_hardening.sql`.
+Migrations in chronological order: `202611040001_initial.sql` through `202611040012_support.sql`. Do not apply these to a database containing unrelated production data without a rehearsal, backup and privilege audit.
 
-**Member identity:** `profiles`, `user_roles`, `user_settings`, `consent_records`, `invitation_tokens`, `invitation_redemptions`, `invitation_claims`.
+## Ownership and RLS
 
-**Audio work:** `tasks`, `task_phrases`, `user_task_assignments`, `assignment_events`, `recording_drafts`, `task_submissions`, `recording_files`, `audio_quality_results`.
+Profiles, settings, roles, consents and hashed invitation tokens enforce identity, restricted grants and auditable invitations. Published tasks and 1–70 ordered immutable phrases feed per-member assignment snapshots. Assignment slots accrue at two tasks per category per UTC elapsed 24 hours since signup. Policies isolate each member's private tasks, recordings, ledger, KYC and notifications. Administrative views only return data when the authenticated session is MFA AAL2.
 
-**Money:** `wallet_accounts`, `wallet_ledger_entries`, `payout_destinations`, `withdrawal_requests`. All amounts are signed integer pence, currency GBP. Available and reserved amounts are cached wallet projections. Reconcile against immutable ledger events before production.
+## Audio
 
-**Compliance and engagement:** `identity_verifications`, `identity_documents`, `identity_status_events`, `verification_access_logs`, `notifications`, `broadcasts`, `broadcast_impressions`, `leaderboard_adjustments`, `rank_history`, `daily_recording_summary`, `audit_logs`, `support_tickets`, `support_messages`, `system_settings`, `partner_exports`, `cron_job_runs`.
+Recording drafts and submitted immutable metadata reference private Storage objects. A server validator verifies MIME magic, file size, SHA-256, ASR transcription confidence and provider-measured speech duration. `audio_quality_results` stores evidence. `approve_audited_submission` requires validated distinct phrase samples and a fresh human review event, then invokes the atomic approval and GBP reward ledger posting once. Scheduled maintenance never unconditionally approves work.
 
-All client-visible tables enable RLS. Private audio and identity buckets have **no direct public read policy**. Privileged Edge Functions generate signed URLs for short-lived access. Functions and server grants are separate from React route guards. Verify grants, RLS, and signed-upload protections using two distinct Supabase user identities before launch.
+## Finance
+
+`wallet_accounts` caches available and reserved balances, derived from immutable `wallet_ledger_entries` and balanced journal postings. `withdrawal_requests` reserves funds at £250 minimum only with real KYC and an approved recipient; rejection releases the reserve. `settle_paid_withdrawal_secure` requires a distinct provider event reference, is idempotent and reconciles reservations. `wallet_adjustment_requests` records reason and separate administrator sign-off above £100. Every journal event balances to zero in integer pence.
+
+## Identity, notifications and operations
+
+`identity_verifications`, private `identity_documents`, status/access events and due timestamps preserve review status and evidence access. `broadcast_impressions` is unique per broadcast, user and authentication session. `notifications` support member read status and Realtime. `support_tickets` and `support_messages` enforce ownership/administrator access, with reply notifications. Logs and export metadata are auditable, not public datasets.
+
+Verify all policies and transaction rules with `supabase test db` and the tests under `tests/integration` before enabling production. Local test users, documents, review evidence and reward movements must never be seeded into a live environment.

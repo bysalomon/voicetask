@@ -1,0 +1,70 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {createClient} from '@supabase/supabase-js';
+const url=process.env.SUPABASE_URL||process.env.API_URL,anon=process.env.SUPABASE_ANON_KEY||process.env.ANON_KEY,serviceKey=process.env.SUPABASE_SERVICE_ROLE_KEY||process.env.SERVICE_ROLE_KEY;
+if(!url||!anon||!serviceKey)throw Error('Local Supabase required');
+const opts={auth:{persistSession:false,autoRefreshToken:false}};
+const service=createClient(url,serviceKey,opts);
+const run=crypto.randomUUID().slice(0,12);
+const pass='Integration-Finance-'+run+'-Aa!28';
+async function member(name){
+ const email='finance-'+name+'-'+run+'@example.test';
+ const result=await service.auth.admin.createUser({email,password:pass,email_confirm:true,user_metadata:{country:'GB',full_name:'Finance Test '+name}});
+ assert.ifError(result.error);const client=createClient(url,anon,opts);
+ const sign=await client.auth.signInWithPassword({email,password:pass});assert.ifError(sign.error);
+ return {id:result.data.user.id,client,email};
+}
+test('real local ledger: audio approval evidence, idempotency, dual control, reserve and settlement',async()=>{
+ const owner=await member('owner'),auditor=await member('auditor'),second=await member('second');
+ const {data:task,error:tErr}=await service.from('tasks').insert({title:'Verified finance integration',category:'Happy Voice',status:'draft',reward_pence:500}).select('id').single();assert.ifError(tErr);
+ const phrase=await service.from('task_phrases').insert({task_id:task.id,position:1,expected_text:'Verified speech recording fixture.'});assert.ifError(phrase.error);
+ assert.ifError((await service.from('tasks').update({status:'published',published_at:new Date().toISOString()}).eq('id',task.id)).error);
+ assert.ifError((await owner.client.rpc('allocate_my_tasks')).error);
+ const assigned=await owner.client.from('user_task_assignments').select('id').eq('task_id',task.id).single();assert.ifError(assigned.error);
+ assert.ifError((await service.from('recording_drafts').insert({user_id:owner.id,assignment_id:assigned.data.id,phrase_id:(await service.from('task_phrases').select('id').eq('task_id',task.id).single()).data.id,storage_path:owner.id+'/'+task.id+'/test/audio.webm',byte_size:3000,mime_type:'audio/webm'})).error);
+ const submitted=await owner.client.rpc('submit_my_task',{p_assignment_id:assigned.data.id,p_idempotency_key:crypto.randomUUID()});assert.ifError(submitted.error);
+ const submissionId=submitted.data;
+ const duplicate=await owner.client.rpc('submit_my_task',{p_assignment_id:assigned.data.id,p_idempotency_key:crypto.randomUUID()});assert.ok(duplicate.error,'Cannot submit the same active assignment twice');
+ const invalid=await service.rpc('approve_audited_submission',{p_submission:submissionId,p_actor:auditor.id,p_reason:'Checked audio in fixture, no evidence yet'});
+ assert.ok(invalid.error,'A service-role actor cannot mint funds without actual validation records');
+ const recording=await service.from('recording_files').select('id').eq('submission_id',submissionId).single();assert.ifError(recording.error);
+ assert.ifError((await service.from('recording_files').update({quality_state:'passed',checksum_sha256:'test-unique-checksum-'+run,duration_ms:3200,voice_seconds_ms:2000}).eq('id',recording.data.id)).error);
+ assert.ifError((await service.from('audio_quality_results').insert({recording_id:recording.data.id,checks:{fixture:true},validator_version:'integration-fixture',final_decision:'passed',score:100})).error);
+ assert.ifError((await service.from('audit_logs').insert({actor_user_id:auditor.id,action:'audio.review_started',entity_type:'task_submissions',entity_id:submissionId})).error);
+ const approved=await service.rpc('approve_audited_submission',{p_submission:submissionId,p_actor:auditor.id,p_reason:'Human tone verified from controlled integration fixture'});
+ assert.ifError(approved.error);assert.equal(approved.data,true);
+ const twice=await service.rpc('approve_audited_submission',{p_submission:submissionId,p_actor:auditor.id,p_reason:'Human tone verified again with sufficient detail'});
+ assert.ok(twice.error||twice.data===false,'An approved submission cannot be paid twice');
+ const afterCredit=await service.from('wallet_accounts').select('available_pence').eq('user_id',owner.id).single();assert.equal(afterCredit.data.available_pence,500);
+ const small=await service.rpc('propose_wallet_adjustment_secure',{p_user:owner.id,p_amount_pence:150,p_actor:auditor.id,p_reason:'Integration fixture audited correction'});
+ assert.ifError(small.error);
+ const big=await service.rpc('propose_wallet_adjustment_secure',{p_user:owner.id,p_amount_pence:25000,p_actor:auditor.id,p_reason:'Integration fixture two-person correction'});
+ assert.ifError(big.error);
+ const selfConfirm=await service.rpc('apply_wallet_adjustment_secure',{p_request:big.data,p_actor:auditor.id});
+ assert.ok(selfConfirm.error,'Large corrections require a different administrator');
+ const secondConfirm=await service.rpc('apply_wallet_adjustment_secure',{p_request:big.data,p_actor:second.id});assert.ifError(secondConfirm.error);
+ const beforeKyc=await owner.client.rpc('request_my_withdrawal',{p_amount_pence:25000,p_destination_id:crypto.randomUUID(),p_idempotency_key:crypto.randomUUID()});assert.ok(beforeKyc.error);
+ const {data:kyc,error:kycErr}=await service.from('identity_verifications').insert({user_id:owner.id,status:'submitted'}).select('id').single();assert.ifError(kycErr);
+ const missingDocument=await service.rpc('decide_identity_secure',{p_id:kyc.id,p_actor:auditor.id,p_approved:true,p_reason:'Integration fixture identity evidence missing'});
+ assert.ok(missingDocument.error,'KYC cannot pass without document evidence');
+ assert.ifError((await service.from('identity_documents').insert({verification_id:kyc.id,storage_path:owner.id+'/test-document.png',doc_type:'passport',side:'front'})).error);
+ assert.ifError((await service.from('verification_access_logs').insert({verification_id:kyc.id,actor:auditor.id,action:'document.review'})).error);
+ assert.ifError((await service.rpc('decide_identity_secure',{p_id:kyc.id,p_actor:auditor.id,p_approved:true,p_reason:'Document checked as test fixture by auditor'})).error);
+ const {data:destination,error:dErr}=await service.from('payout_destinations').insert({user_id:owner.id,type:'paypal',provider_token_ref:owner.email,masked_display:'f***@example.test',verified:true,country:'GB'}).select('id').single();assert.ifError(dErr);
+ assert.ifError((await service.from('system_settings').upsert({key:'payouts_enabled',value:true})).error);
+ const requests=await Promise.all([
+ owner.client.rpc('request_my_withdrawal',{p_amount_pence:25000,p_destination_id:destination.id,p_idempotency_key:crypto.randomUUID()}),
+ owner.client.rpc('request_my_withdrawal',{p_amount_pence:25000,p_destination_id:destination.id,p_idempotency_key:crypto.randomUUID()})
+ ]);
+ assert.equal(requests.filter(r=>!r.error).length,1,'Concurrent withdrawal requests cannot spend the same balance twice');
+ const withdrawalId=requests.find(r=>!r.error).data;
+ const reserved=await service.from('wallet_accounts').select('available_pence,reserved_pence').eq('user_id',owner.id).single();
+ assert.equal(reserved.data.available_pence,650);assert.equal(reserved.data.reserved_pence,25000);
+ assert.ifError((await service.rpc('reject_withdrawal_secure',{p_id:withdrawalId,p_reason:'Integration tested release after admin rejection'})).error);
+ const released=await service.from('wallet_accounts').select('available_pence,reserved_pence').eq('user_id',owner.id).single();
+ assert.equal(released.data.available_pence,25650);assert.equal(released.data.reserved_pence,0);
+ const journal=await service.from('wallet_journal_postings').select('amount_pence,journal_id').eq('user_id',owner.id);
+ assert.ifError(journal.error);assert.ok(journal.data.length>=8);
+ const sums=new Map();for(const row of journal.data)sums.set(row.journal_id,(sums.get(row.journal_id)||0)+row.amount_pence);
+ assert.ok([...sums.values()].every(n=>n===0),'Every journal event balances to zero in GBP pence');
+ const output=await owner.client.from('wallet_ledger_entries').select('id').eq('user_id',auditor.id);
+ assert.equal(output.data?.length,0,'Members cannot inspect other users wallets');
+});

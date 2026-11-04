@@ -1,0 +1,22 @@
+name: Scheduled VoiceTask Maintenance
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+jobs:
+  maintain:
+    if: ${{ vars.ENABLE_MAINTENANCE == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    environment: production
+    steps:
+      - name: Process due submissions with authenticated scheduler
+        env:
+          PROJECT_URL: ${{ vars.SUPABASE_PROJECT_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          test -n "$PROJECT_URL" && test -n "$CRON_SECRET"
+          curl --fail-with-body --silent --show-error --max-time 170 \
+            -X POST "$PROJECT_URL/functions/v1/scheduled-maintenance" \
+            -H "Authorization: Bearer $CRON_SECRET" -H 'Content-Type: application/json' \
+            -d '{}'

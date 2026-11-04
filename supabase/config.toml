@@ -17,3 +17,6 @@ verify_jwt = false
 
 [local_smtp]
 enabled = false
+
+[functions.scheduled-maintenance]
+verify_jwt = false

@@ -5,8 +5,6 @@ port = 54321
 port = 54322
 [studio]
 port = 54323
-[inbucket]
-port = 54324
 [auth]
 enable_signup = false
 [auth.email]

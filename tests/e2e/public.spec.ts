@@ -27,10 +27,17 @@ test('member and administrative routes deny unauthenticated access',async({page}
  await expect(page).toHaveURL(/\/admsalomon\/login$/);
  await expect(page.getByRole('heading',{name:'Secure admin sign in'})).toBeVisible();
 });
-test('invitation cannot sign up without a token',async({page})=>{
+test('invitation route is sufficient to show the registration form without a token',async({page})=>{
  await page.goto('/invitation');
- await expect(page.getByRole('heading',{name:'Enter your invitation code'})).toBeVisible();
- await expect(page.getByRole('button',{name:'Create account'})).toHaveCount(0);
+ await expect(page.getByRole('heading',{name:/received an invitation to join/i})).toBeVisible();
+ await expect(page.getByLabel('Full name')).toBeVisible();
+ await expect(page.getByLabel('Email address')).toBeVisible();
+ await expect(page.getByRole('button',{name:'Create account'})).toBeEnabled();
+ await expect(page).toHaveURL(/\/invitation$/);
+});
+test('individual one-use invitation URLs still show the registration form',async({page})=>{
+ await page.goto('/invitation?token=test-individual-invitation');
+ await expect(page.getByRole('button',{name:'Create account'})).toBeVisible();
 });
 test('mobile navigation and hero have no horizontal overflow',async({page,isMobile})=>{
  if(!isMobile)return;

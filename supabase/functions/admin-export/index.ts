@@ -12,9 +12,9 @@ Deno.serve(async req=>{try{
  const {kind}=await req.json() as {kind:keyof typeof allowed};
  if(!(kind in allowed))throw Error('Export scope not permitted');
  const cfg=allowed[kind];
- const {data,error}=await service.from(cfg.table).select(cfg.columns).limit(5000);
+ const columns:string=cfg.columns;const {data,error}=await service.from(cfg.table).select(columns).limit(5000);
  if(error)throw error;
- const entries=(data||[]) as Record<string,unknown>[];
+ const entries=(data||[]) as unknown as Record<string,unknown>[];
  const fields=cfg.columns==='*'?Object.keys(entries[0]||{}):cfg.columns.split(',');
  const lines=[fields.map(safeCell).join(','),...entries.map(entry=>fields.map(k=>safeCell(entry[k])).join(','))];
  await service.from('audit_logs').insert({actor_user_id:user.id,action:'data.export',entity_type:kind,after_filtered:{rows:entries.length}});

@@ -44,9 +44,9 @@ test('isolated Supabase: actual multi-account authorization and entitlement work
  }
  const results=await Promise.all(Array.from({length:5},()=>a.client.rpc('allocate_my_tasks')));
  results.forEach(r=>assert.ifError(r.error));
- const {data:assignments,error:assignmentError}=await service.from('user_task_assignments').select('id,task_id').eq('user_id',a.user.id);
+ const {data:assignments,error:assignmentError}=await service.from('user_task_assignments').select('id,task_id,category_snapshot').eq('user_id',a.user.id);
  assert.ifError(assignmentError);
- assert.equal(assignments.length,2,'Only two tasks can be assigned in first signup period');
+ assert.equal(assignments.filter(x=>x.category_snapshot==='Crying Voice').length,2,'Only two tasks per category can be assigned in first signup period');
  const onlyMine=await b.client.from('user_task_assignments').select('id').eq('user_id',a.user.id);
  assert.equal(onlyMine.data?.length,0,'Member B cannot see A assignment');
  const submission=await a.client.rpc('submit_my_task',{p_assignment_id:assignments[0].id,p_idempotency_key:crypto.randomUUID()});

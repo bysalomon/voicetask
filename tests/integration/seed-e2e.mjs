@@ -1,0 +1,18 @@
+import {appendFileSync} from 'node:fs';
+import {createClient} from '@supabase/supabase-js';
+const url=process.env.SUPABASE_URL,anon=process.env.SUPABASE_ANON_KEY,key=process.env.SUPABASE_SERVICE_ROLE_KEY;
+if(!url||!anon||!key)throw Error('Real local Supabase environment is required');
+const service=createClient(url,key,{auth:{persistSession:false}});
+const email='voice-e2e-'+crypto.randomUUID().slice(0,10)+'@example.test';
+const pin='62749138';
+const {data:user,error:accountError}=await service.auth.admin.createUser({email,password:pin,email_confirm:true,user_metadata:{full_name:'VoiceTask Browser Test',country:'GB'}});
+if(accountError||!user.user)throw accountError||Error('Account creation failed');
+const {data:task,error:taskError}=await service.from('tasks').insert({title:'Browser audio upload exercise',category:'Excited Voice',status:'draft',reward_pence:950,language:'en-GB',instructions:'Speak the phrase clearly in an excited voice.'}).select('id').single();
+if(taskError)throw taskError;
+const phrase=await service.from('task_phrases').insert({task_id:task.id,position:1,expected_text:'I am so happy to record this sentence today.'});
+if(phrase.error)throw phrase.error;
+const publication=await service.from('tasks').update({status:'published',published_at:new Date().toISOString()}).eq('id',task.id);
+if(publication.error)throw publication.error;
+if(!process.env.GITHUB_ENV)throw Error('Only run this fixture in disposable GitHub Actions');
+appendFileSync(process.env.GITHUB_ENV,'E2E_TEST_EMAIL='+email+'\nE2E_TEST_PIN='+pin+'\nE2E_TEST_TASK='+task.id+'\n');
+console.log('Created ephemeral member, published one voice task, and passed credentials privately to the browser test job.');

@@ -21,6 +21,8 @@ Deno.serve(async req=>{try{
   const {error}=await service.from('notifications').insert({user_id:b.user_id,title:'Message from VoiceTask support',body:b.message,type:'information',deep_link:'/app'});if(error)throw error;
  }else{
   const status=b.action==='suspend'?'suspended':'active';
+  const {error:banError}=await service.auth.admin.updateUserById(b.user_id,{ban_duration:b.action==='suspend'?'876000h':'none'});
+  if(banError)throw banError;
   const {data:profile,error}=await service.from('profiles').update({status}).eq('id',b.user_id).select('id').maybeSingle();
   if(error||!profile)throw Error('User update failed');
  }

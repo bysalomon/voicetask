@@ -77,7 +77,7 @@ function ClubCollection({heading,courses,columns}:{heading:string;courses:Course
 
 export function MemberClubCourse(){
  const {slug}=useParams();const {user}=useAuth();const qc=useQueryClient();const [search,setSearch]=useSearchParams();
- const [busy,setBusy]=useState(false);const [message,setMessage]=useState('');
+ const [busy,setBusy]=useState(false);const [message,setMessage]=useState('');const [pdfLink,setPdfLink]=useState<string|null>(null);
  const {data,isLoading,error}=useQuery({
   queryKey:['club-course',slug,user?.id],enabled:!!slug&&!!user,
   queryFn:async()=>{
@@ -121,7 +121,7 @@ export function MemberClubCourse(){
   setBusy(true);setMessage('');
   const {data:result,error}=await supabase.functions.invoke('member-club-files',{body:{action:'get-lesson-pdf',lesson_id:current.id}});
   if(error||!result?.url)setMessage(error?.message||'The PDF is currently unavailable.');
-  else window.open(result.url,'_blank','noopener,noreferrer');
+  else setPdfLink(result.url);
   setBusy(false);
  }
  if(isLoading)return <div className="skeletonBox">Loading your course…</div>;
@@ -141,7 +141,8 @@ export function MemberClubCourse(){
       {current.description&&<p>{current.description}</p>}
       <div className="clubLessonButtons">
        <button className="primary" disabled={busy||data.done.has(current.id)} onClick={()=>void markComplete()}><CheckCircle2 size={17}/>{data.done.has(current.id)?'Lesson completed':'Mark as completed'}</button>
-       {current.pdf_url&&<button className="outlineButton" disabled={busy} onClick={()=>void getPdf()}><Download size={16}/> Lesson PDF</button>}
+       {current.pdf_url&&<button className="outlineButton" disabled={busy} onClick={()=>{setPdfLink(null);void getPdf()}}><Download size={16}/> Prepare lesson PDF</button>}
+       {pdfLink&&<a className="outlineButton" href={pdfLink} target="_blank" rel="noopener noreferrer"><Download size={16}/> Open prepared PDF (expires shortly)</a>}
        {current.resource_url&&<a className="outlineButton" href={current.resource_url} target="_blank" rel="noopener noreferrer"><ExternalLink size={16}/> Extra resource</a>}
       </div>
       {message&&<p role="status" className="notice">{message}</p>}

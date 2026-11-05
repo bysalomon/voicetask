@@ -14,7 +14,7 @@ async function invoke(action:string,body:Record<string,unknown>={}){
  if(error){
   let message=error.message;
   if('context' in error&&error.context instanceof Response){
-   try{const content=await error.context.clone().json();message=content?.message||content?.error||message;}catch{}
+   try{const content=await error.context.clone().json();message=content?.message||content?.error||message;}catch{ /* Preserve the original error when response parsing fails. */ }
   }
   throw Error(message);
  }

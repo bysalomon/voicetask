@@ -17,7 +17,7 @@ export function WalletPage(){
   if(!Number.isSafeInteger(pence)||pence<25000||pence>available){setMessage('Enter an eligible withdrawal amount.');return}
   setBusy(true);
   const {error}=await supabase.rpc('request_my_withdrawal',{p_amount_pence:pence,p_destination_id:dest,p_idempotency_key:crypto.randomUUID()});
-  setMessage(error?.message||'Your withdrawal has been reserved and submitted for provider processing.');
+  setMessage(error?.message||'Your withdrawal request has been received by our payments team.');
   await refetch();setBusy(false);
  }
  async function register(e:FormEvent){
@@ -37,7 +37,7 @@ export function WalletPage(){
  <form onSubmit={e=>void withdraw(e)} className="formStack">
  <label>Verified payment destination<select required value={dest} onChange={e=>setDest(e.target.value)}><option value="">Select a verified destination</option>{data?.destinations.filter(d=>d.verified).map(d=><option key={d.id} value={d.id}>{d.type}: {d.masked_display}</option>)}</select></label>
  <label>Amount in GBP<input type="number" min="250" max={available/100} step=".01" required value={amount} onChange={e=>setAmount(e.target.value)}/></label>
- <p className="muted">Withdrawals are handled manually by VoiceTask staff. Earnings are reserved when requested and marked paid only after an external transfer is completed and recorded.</p>
+ <p className="muted">Withdrawals are handled by the VoiceTask payments team.</p>
  <button className="primary" disabled={busy||!eligible||!dest}>{busy?'Submitting…':'Request withdrawal'}</button>
  </form></section>
  <section className="panel formStack"><h2>Payment destinations</h2>

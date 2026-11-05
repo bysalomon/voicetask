@@ -4,7 +4,7 @@ test('@live member: real Supabase login, allocation, audio upload, submission an
  test.skip(!process.env.E2E_TEST_EMAIL||!process.env.VITE_SUPABASE_URL,'Requires disposable Supabase E2E fixture');
  await page.goto('/login');
  await page.getByLabel('Email address').fill(process.env.E2E_TEST_EMAIL!);
- await page.getByLabel('8-digit access code').fill(process.env.E2E_TEST_PIN!);
+ await page.getByLabel('8-digit access code or password').fill(process.env.E2E_TEST_PIN!);
  await page.getByRole('button',{name:'Sign in',exact:true}).click();
  await expect(page).toHaveURL(/\/app$/,{timeout:20000});
  await expect(page.getByRole('heading',{name:/Good (morning|afternoon|evening), VoiceTask/i})).toBeVisible();

@@ -10,7 +10,7 @@ async function post(action:string,body:Record<string,unknown>={}){
  const {data,error}=await supabase.functions.invoke('member-club-admin',{body:{action,...body}});
  if(error){let message=error.message;
   if('context' in error&&error.context instanceof Response){
-   try{const payload=await error.context.clone().json();message=payload?.message||payload?.error||message;}catch{}
+   try{const payload=await error.context.clone().json();message=payload?.message||payload?.error||message;}catch{ /* Preserve the original error when response parsing fails. */ }
   }
   throw Error(message);
  }

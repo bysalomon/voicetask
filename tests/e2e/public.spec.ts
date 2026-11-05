@@ -39,6 +39,26 @@ test('individual one-use invitation URLs still show the registration form',async
  await page.goto('/invitation?token=test-individual-invitation');
  await expect(page.getByRole('button',{name:'Create account'})).toBeVisible();
 });
+test('invitation displays a useful error returned by the server',async({page})=>{
+ await page.route('**/functions/v1/accept-invite',async route=>{
+  if(route.request().method()==='OPTIONS'){
+   await route.fulfill({status:204,headers:{'access-control-allow-origin':'*','access-control-allow-methods':'POST, OPTIONS','access-control-allow-headers':'authorization,apikey,content-type,x-client-info'}});
+   return;
+  }
+  await route.fulfill({status:403,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify({message:'Resend rejected the verification email (403). Check test recipient permissions.'})});
+ });
+ await page.goto('/invitation');
+ await page.getByLabel('Full name').fill('Registration Test');
+ await page.getByLabel('Mobile number').fill('+440000000000');
+ await page.getByLabel('Email address').fill('nobody@example.invalid');
+ await page.getByLabel('Create your 8-digit access code').fill('12345678');
+ await page.getByLabel('Confirm your access code').fill('12345678');
+ const checks=page.locator('form.authCard input[type="checkbox"]');
+ await expect(checks).toHaveCount(4);
+ for(let i=0;i<4;i++)await checks.nth(i).check();
+ await page.getByRole('button',{name:'Create account'}).click();
+ await expect(page.getByRole('status')).toContainText('Resend rejected the verification email (403)',{timeout:15000});
+});
 test('mobile navigation and hero have no horizontal overflow',async({page,isMobile})=>{
  if(!isMobile)return;
  await page.goto('/');

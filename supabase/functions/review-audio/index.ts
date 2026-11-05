@@ -46,5 +46,5 @@ Deno.serve(async req=>{try{
  }
  await service.from('task_submissions').update({status:'manual_review',review_reason:'Awaiting human verification of the requested emotional tone.'}).eq('id',submission.id);
  await service.from('audit_logs').insert({actor_user_id:user.id,action:'audio.quality_analysed',entity_type:'task_submissions',entity_id:submission.id,after_filtered:{results:output}});
- return reply({status:'manual_review',results:output,message:'Content and duration verified where possible; manual tone review is still required.'});
+ return reply({status:'manual_review',results:output,message:output.every(result=>result.status==='passed')?'Automatic checks passed; a genuine human tone review is still required before approval.':'Automatic validation could not pass every recording. Check the recorded error details; no wallet reward has been credited.'});
 }catch(e){return fail(e)}});

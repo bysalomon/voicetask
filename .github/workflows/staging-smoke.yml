@@ -82,7 +82,7 @@ jobs:
         run: |
           set -euo pipefail
           base='https://mlypusfsxafsdnnzquek.supabase.co/functions/v1'
-          for fn in review-audio admin-action admin-recording-playback; do
+          for fn in review-audio admin-action admin-recording-playback manual-payment process-payout; do
             code="$(curl --silent --show-error --max-time 30 \
               --output /dev/null --write-out '%{http_code}' \
               -X POST "$base/$fn" \
@@ -95,3 +95,16 @@ jobs:
             fi
           done
           echo 'PASS: Review, approval, and private playback endpoints require authentication.'
+
+      - name: Verify removed automatic PayPal webhook cannot settle a withdrawal
+        shell: bash
+        run: |
+          set -euo pipefail
+          code="$(curl --silent --show-error --max-time 30 \
+            --output /dev/null --write-out '%{http_code}' \
+            -X POST 'https://mlypusfsxafsdnnzquek.supabase.co/functions/v1/webhook-paypal' \
+            -H 'Content-Type: application/json' \
+            --data '{"event_type":"PAYMENT.PAYOUTS-ITEM.SUCCEEDED"}')"
+          echo "Disabled PayPal settlement webhook -> HTTP $code"
+          test "$code" = '409'
+          echo 'PASS: external payment webhook cannot mark a manual withdrawal as paid.'

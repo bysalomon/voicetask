@@ -59,4 +59,21 @@ jobs:
             exit 1
           fi
           echo 'PASS: Live function has email provider configured and rejects an unknown invite. No account was created.'
-
+      - name: Verify /invitation registration without a token rejects incomplete details
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint='https://mlypusfsxafsdnnzquek.supabase.co/functions/v1/accept-invite'
+          origin='https://voicetask-staging.vercel.app'
+          response="$(mktemp)"
+          # The optional token is omitted intentionally. Missing consent guarantees
+          # rejection BEFORE any invitation issuance, email request or user creation.
+          code="$(curl --silent --show-error --max-time 30 \
+            --output "$response" --write-out '%{http_code}' \
+            -X POST "$endpoint" -H "Origin: $origin" \
+            -H 'Content-Type: application/json' \
+            --data '{"pin":"12345678","email":"nobody@example.invalid","country":"GB","full_name":"Staging Probe","mobile":"+440000000000","consents":{"terms":true,"privacy":true,"data_use":true,"age_18":false}}')"
+          echo "Tokenless invalid-registration status: $code"
+          test "$code" = '400'
+          grep -q 'Invalid registration details or consent' "$response"
+          echo 'PASS: Live tokenless registration safely rejects incomplete consent.'

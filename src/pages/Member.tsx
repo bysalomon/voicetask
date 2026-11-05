@@ -2,13 +2,13 @@ import {useState,type FormEvent} from 'react';import {Link} from 'react-router-d
 import {AdminSecuritySetup} from '../components/AdminSecuritySetup';
 export function WalletPage(){
  const {user}=useAuth();const {data,refetch}=useQuery({queryKey:['wallet',user?.id],enabled:!!user,queryFn:async()=>{
-  const [w,l,v,p]=await Promise.all([
+  const [w,l,v,p,r]=await Promise.all([
    supabase.from('wallet_accounts').select('*').eq('user_id',user!.id).maybeSingle(),
    supabase.from('wallet_ledger_entries').select('*').eq('user_id',user!.id).order('created_at',{ascending:false}).limit(50),
    supabase.from('identity_verifications').select('status').eq('user_id',user!.id).order('submitted_at',{ascending:false}).limit(1),
-   supabase.from('payout_destinations').select('id,masked_display,type,verified').eq('user_id',user!.id)]);
-  for(const x of [w,l,v,p])if(x.error)throw x.error;
-  return {wallet:w.data,ledger:l.data||[],kyc:v.data?.[0]?.status,destinations:p.data||[]}
+   supabase.from('payout_destinations').select('id,masked_display,type,verified').eq('user_id',user!.id),supabase.from('withdrawal_requests').select('id,status,requested_pence,requested_at,provider_reference').eq('user_id',user!.id).order('requested_at',{ascending:false}).limit(20)]);
+  for(const x of [w,l,v,p,r])if(x.error)throw x.error;
+  return {wallet:w.data,ledger:l.data||[],kyc:v.data?.[0]?.status,destinations:p.data||[],withdrawals:r.data||[]}
  }});
  const available=data?.wallet?.available_pence||0;const [dest,setDest]=useState('');const [amount,setAmount]=useState('250.00');
  const [recipient,setRecipient]=useState('');const [message,setMessage]=useState('');const [busy,setBusy]=useState(false);
@@ -33,19 +33,20 @@ export function WalletPage(){
  <div className="lowerGrid"><section className="panel formStack"><h2>Request withdrawal</h2>
  {data?.kyc!=='verified'?<div className="notice"><ShieldCheck size={19}/> Identity verification must be completed before withdrawal. <Link to="/app/profile#identity-verification">Verify identity <ArrowRight size={14}/></Link></div>:
  available<25000?<div className="notice">You need at least £250.00 in approved available earnings to request a withdrawal.</div>:
- !data.destinations.some(d=>d.verified)?<div className="notice">Your payment recipient has not yet passed provider verification. Set up a destination below.</div>:null}
+ !data.destinations.some(d=>d.verified)?<div className="notice">Your payment recipient is awaiting approval by our payments team. Set up a destination below.</div>:null}
  <form onSubmit={e=>void withdraw(e)} className="formStack">
  <label>Verified payment destination<select required value={dest} onChange={e=>setDest(e.target.value)}><option value="">Select a verified destination</option>{data?.destinations.filter(d=>d.verified).map(d=><option key={d.id} value={d.id}>{d.type}: {d.masked_display}</option>)}</select></label>
  <label>Amount in GBP<input type="number" min="250" max={available/100} step=".01" required value={amount} onChange={e=>setAmount(e.target.value)}/></label>
- <p className="muted">A payout requires verified identity and a provider-approved recipient. Money is reserved atomically, and is only marked paid following provider confirmation.</p>
+ <p className="muted">Withdrawals are handled manually by VoiceTask staff. Earnings are reserved when requested and marked paid only after an external transfer is completed and recorded.</p>
  <button className="primary" disabled={busy||!eligible||!dest}>{busy?'Submitting…':'Request withdrawal'}</button>
  </form></section>
  <section className="panel formStack"><h2>Payment destinations</h2>
- {data?.destinations.map(d=><div className="listLine" key={d.id}><div><strong>{d.type==='paypal'?'PayPal':'Bank'} · {d.masked_display}</strong><small>{d.verified?'Recipient verified':'Awaiting provider verification'}</small></div></div>)}
+ {data?.destinations.map(d=><div className="listLine" key={d.id}><div><strong>{d.type==='paypal'?'PayPal':'Bank'} · {d.masked_display}</strong><small>{d.verified?'Staff-approved recipient':'Awaiting staff review'}</small></div></div>)}
  <form onSubmit={e=>void register(e)} className="formStack"><label>PayPal recipient email<input type="email" required value={recipient} onChange={e=>setRecipient(e.target.value)} placeholder="name@example.com"/></label>
  <button className="outlineButton" disabled={busy}>Register PayPal destination</button></form>
- <p className="muted">Bank transfer requires an authorised banking provider. This option remains unavailable until the provider is approved and integrated. A verified email does not itself verify a PayPal account.</p>
+ <p className="muted">Payments are made outside VoiceTask by our payments team, currently to staff-approved PayPal addresses. The displayed status is updated after the actual transfer. Bank details are not currently collected.</p>
  </section></div>
+ <section className="panel"><h2>Withdrawal requests</h2>{data?.withdrawals.length?data.withdrawals.map(r=><div className="listLine" key={r.id}><div><strong>{r.status.replaceAll('_',' ')}</strong><small>{dates(r.requested_at)} · Handled manually by the payments team{r.provider_reference?' · Transfer ref: '+r.provider_reference:''}</small></div><strong>{pounds(r.requested_pence)}</strong></div>):<div className="emptyState">No withdrawal requests yet.</div>}</section>
  <section className="panel"><h2>Transaction history</h2>{data?.ledger.length?data.ledger.map(e=><div className="listLine" key={e.id}><div><strong>{e.entry_type.replaceAll('_',' ')}</strong><small>{dates(e.created_at)}</small></div><strong>{pounds(e.amount_pence)}</strong></div>):<div className="emptyState">No transactions yet.</div>}</section>
  {message&&<p role="status" className="notice">{message}</p>}</>
 }

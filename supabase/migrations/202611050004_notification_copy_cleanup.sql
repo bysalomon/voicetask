@@ -6,10 +6,11 @@ declare old_body text:='Your submitted task was automatically accepted after fiv
 declare new_body text:='Your submitted task was automatically accepted after five minutes. Your reward is now available in your wallet.';
 begin
  select pg_get_functiondef('public.auto_accept_due_submissions(integer)'::regprocedure) into definition;
- if strpos(definition,old_body)=0 then
-   raise exception 'Timed task function copy has changed; review required before migration';
+ if strpos(definition,old_body)>0 then
+   execute replace(definition,old_body,new_body);
+ elsif strpos(definition,new_body)=0 then
+   raise exception 'Timed task notification copy changed unexpectedly; review required';
  end if;
- execute replace(definition,old_body,new_body);
 end $fix$;
 update public.notifications
  set body=replace(body,

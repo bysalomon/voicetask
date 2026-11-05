@@ -83,8 +83,6 @@ export function ProfilePage(){
   }catch(error){setMessage(error instanceof Error?error.message:'Document upload failed');}
   setBusy(false);
  }
- const steps=['Documents received','Queued for identity checks','Provider or reviewer processing','Document authenticity assessment','Identity details review','Final decision pending','Verified identity'];
- const submitted=verification?.submitted_at?new Date(verification.submitted_at):null;
  const due=verification?.due_at?new Date(verification.due_at):null;
  const overdue=due&&due.getTime()<Date.now()&&!['verified','rejected'].includes(verification?.status||'');
  return <><div className="pageHeading"><div><span className="eyebrow">ACCOUNT</span><h1>My Profile</h1><p>Manage your details and identity verification.</p></div></div>
@@ -103,14 +101,14 @@ export function ProfilePage(){
  <label>Document type<select value={docType} onChange={e=>setDocType(e.target.value)}><option value="passport">Passport</option><option value="national_id">National ID</option></select></label>
  <label>{docType==='national_id'?'Identity document — front':'Identity document'}<input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" required onChange={e=>setFront(e.target.files?.[0]||null)}/></label>
  {docType==='national_id'&&<label>Identity document — back<input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" required onChange={e=>setBack(e.target.files?.[0]||null)}/></label>}
- <p className="muted">Your documents are private and are never included in AI training datasets. A reviewer or an authorised provider must verify your documents; seven days alone does not verify an identity.</p>
+ <p className="muted">Your documents are private and are never included in AI training datasets. Our verification team reviews your documents manually. Time passing does not automatically verify your identity.</p>
  <button className="primary" disabled={busy}>{busy?'Uploading securely…':'Verify my identity'}</button></form>}
- {verification&&<div className="kycTimeline"><h3>Verification timeline</h3>{steps.map((step,i)=>{
- const event=i===0?events.find(e=>e.to_status==='submitted'):i===6?events.find(e=>e.to_status==='verified'):null;
- const label=i===6&&verification.status!=='verified'?'Awaiting a genuine verification decision':step;
- const date=submitted?new Date(submitted.getTime()+i*86400000):null;
- return <div key={step} className={'timelineEntry '+(event?'timelineConfirmed':'')}><span>{i+1}</span><div><strong>{label}</strong><small>{event?'Confirmed '+dates(event.at):i===6?'Only a verified decision completes this step':date?'Estimated milestone '+dates(date.toISOString()):'Not yet confirmed'}</small></div></div>
- })}<small>Intermediate milestones are estimates, not confirmation that document review has occurred.</small></div>}</section></div>
+ {verification&&<div className="kycTimeline"><h3>Verification history</h3>
+ {events.length?events.map((event,i)=><div className="timelineEntry timelineConfirmed" key={event.id}>
+  <span>{i+1}</span><div><strong>{event.to_status.replaceAll('_',' ')}</strong><small>{dates(event.at)}{event.reason?' · '+event.reason:''}</small></div>
+ </div>):<div className="timelineEntry timelineConfirmed"><span>1</span><div><strong>Documents submitted</strong><small>{dates(verification.submitted_at)}</small></div></div>}
+ {['submitted','processing','manual_review'].includes(verification.status)&&<p className="muted">Awaiting a manual decision by the VoiceTask verification team. No automatic approval occurs after a fixed number of days.</p>}
+ </div></section></div>
  {message&&<p className="notice" role="status">{message}</p>}</>
 }
 export function SettingsPage(){const {user}=useAuth();const [message,setMessage]=useState('');const {data,refetch}=useQuery({queryKey:['settings',user?.id],enabled:!!user,queryFn:async()=>{const {data}=await supabase.from('user_settings').select('*').eq('user_id',user!.id).maybeSingle();return data}});async function change(key:'in_app_notifications'|'email_notifications'|'whatsapp_opt_in',value:boolean){const {error}=await supabase.from('user_settings').update({[key]:value}).eq('user_id',user!.id);setMessage(error?.message||'Preferences saved');void refetch()}return <><div className="pageHeading"><div><span className="eyebrow">PREFERENCES</span><h1>Settings</h1><p>Notifications, account security and privacy.</p></div></div><div className="panel formStack"><h2><Settings size={19}/> Account notifications</h2>{([['in_app_notifications','In-app notifications'],['email_notifications','Email notifications'],['whatsapp_opt_in','WhatsApp notifications (opt-in)']] as const).map(([key,label])=><label className="settingLine" key={key}>{label}<input type="checkbox" checked={!!data?.[key]} onChange={e=>void change(key,e.target.checked)}/></label>)}<h2>Security</h2><p className="muted">Recover or update your access code through the verified email recovery flow.</p><Link to="/forgot-access" className="outlineButton">Manage account access</Link><AdminSecuritySetup/><h2>Privacy & data</h2><p className="muted">Your voice recordings and identification documents are personal data. View how your information is processed.</p><Link to="/data-use" className="textLink">Data use policy</Link><Link to="/privacy" className="textLink">Privacy policy</Link>{message&&<p role="status">{message}</p>}</div></>}

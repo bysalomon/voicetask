@@ -77,3 +77,21 @@ jobs:
           test "$code" = '400'
           grep -q 'Invalid registration details or consent' "$response"
           echo 'PASS: Live tokenless registration safely rejects incomplete consent.'
+      - name: Confirm private administrator endpoints reject anonymous access
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://mlypusfsxafsdnnzquek.supabase.co/functions/v1'
+          for fn in review-audio admin-action admin-recording-playback; do
+            code="$(curl --silent --show-error --max-time 30 \
+              --output /dev/null --write-out '%{http_code}' \
+              -X POST "$base/$fn" \
+              -H 'Content-Type: application/json' \
+              --data '{"action":"inspect","submission_id":"00000000-0000-0000-0000-000000000000"}')"
+            echo "Unauthenticated $fn -> HTTP $code"
+            if [[ "$code" != 401 && "$code" != 403 ]]; then
+              echo "FAIL: private administrator function accepted unauthenticated request"
+              exit 1
+            fi
+          done
+          echo 'PASS: Review, approval, and private playback endpoints require authentication.'

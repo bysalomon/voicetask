@@ -31,7 +31,7 @@ select has_function('public','staff_set_leaderboard_points',array['uuid','text',
 select has_function('public','staff_confirm_manual_payout',array['uuid','uuid','text','text'],'Manual payment confirmation exists');
 select has_function('public','decide_identity_secure',array['uuid','uuid','boolean','text'],'Manual KYC decision exists');
 select ok((select relrowsecurity from pg_class where oid='public.club_courses'::regclass),'Courses enforce RLS');
-select ok((select relrowsecurity from pg_class where oid='public.club_lessons'::regclass'),'Lessons enforce RLS');
+select ok((select relrowsecurity from pg_class where oid='public.club_lessons'::regclass),'Lessons enforce RLS');
 select ok((select relrowsecurity from pg_class where oid='public.club_lesson_progress'::regclass),'Lesson progress enforces RLS');
 select ok(not has_function_privilege('authenticated','public.staff_confirm_manual_payout(uuid,uuid,text,text)','execute'),'Members cannot settle payouts');
 select ok(not has_function_privilege('authenticated','public.staff_set_leaderboard_points(uuid,text,integer,uuid,text)','execute'),'Members cannot adjust rankings');

@@ -1,5 +1,5 @@
 import {useState} from 'react';import {useQueryClient} from '@tanstack/react-query';import {X,Mic,ShieldCheck,CheckCircle,RefreshCw} from 'lucide-react';import {supabase,duration} from '../lib/core';
-type Clip={id:string;position:number;text:string;url:string;quality_state:string;duration_ms:number|null;voice_seconds_ms:number|null;quality:{checks?:{transcript?:string;similarity?:number;confidence?:number};final_decision?:string}|null};
+type Clip={id:string;position:number;text:string;url:string;quality_state:string;duration_ms:number|null;voice_seconds_ms:number|null;quality:{checks?:{transcript?:string;similarity?:number;confidence?:number;error?:string};final_decision?:string}|null};
 type Payload={submission_id:string;status:string;recordings:Clip[]};
 export function AudioReview({submissionId,onClose}:{submissionId:string;onClose:()=>void}){
  const [data,setData]=useState<Payload|null>(null);const [busy,setBusy]=useState(false);const [reason,setReason]=useState('');const [attest,setAttest]=useState(false);const [message,setMessage]=useState('');const qc=useQueryClient();
@@ -26,6 +26,7 @@ export function AudioReview({submissionId,onClose}:{submissionId:string;onClose:
  <div className="reviewClipTop"><strong>Phrase {r.position}</strong><span className={'statusPill '+(r.quality_state==='passed'?'passed':'')}>{r.quality_state.replaceAll('_',' ')}</span></div>
  <blockquote>“{r.text}”</blockquote><audio controls preload="none" src={r.url} aria-label={'Recording for phrase '+r.position}/>
  {r.quality?.checks?.transcript&&<p className="muted">ASR: {r.quality.checks.transcript}</p>}
+ {r.quality?.checks?.error&&<p className="error" role="alert">Automatic audio validation: {r.quality.checks.error}</p>}
  <small>{r.voice_seconds_ms?duration(r.voice_seconds_ms):'Awaiting measured voice duration'} · The player URL expires shortly</small>
  </div>)}</div>
  <div className="inlineActions"><button className="outlineButton" disabled={busy} onClick={()=>void load('inspect')}><RefreshCw size={16}/> Refresh links</button><button className="outlineButton" disabled={busy} onClick={()=>void load('analyse')}><Mic size={16}/> Analyse audio</button></div>

@@ -5,7 +5,7 @@ on:
   pull_request:
 concurrency:
   group: voicetask-ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   quality:
     runs-on: ubuntu-latest
@@ -57,6 +57,8 @@ jobs:
         with:
           version: latest
       - run: npm install --no-audit --no-fund
+      - name: Clean up stale isolated Supabase processes
+        run: supabase stop --no-backup || true
       - name: Start isolated Supabase and apply all migrations
         run: supabase start
       - name: Check SQL tests

@@ -73,14 +73,33 @@ Deno.serve(async req=>{
           html:'<p>Please verify your account:</p><p><a href="'+link.properties.action_link+'">Verify email address</a></p>'
         })
       });
-      if(!mail.ok)throw Error('Verification email could not be delivered');
+      if(!mail.ok){
+        const providerError=await mail.json().catch(()=>null);
+        const providerCode=typeof providerError?.name==='string'?providerError.name:
+          typeof providerError?.code==='string'?providerError.code:'unknown';
+        console.error('Resend rejected confirmation email',{status:mail.status,providerCode});
+        throw Error(mail.status===403
+          ? 'Resend rejected the verification email (403). If using onboarding@resend.dev, register with the address used for your Resend account or verify a sending domain.'
+          : 'Resend could not send the verification email (HTTP '+mail.status+'). Check the Resend API logs and your verified sender.');
+      }
       return reply({message:'Please verify your email address to continue.'});
     }catch(e){
       // Clear dependent records before deleting the Auth user.
       if(createdId){
         await service.from('consent_records').delete().eq('user_id',createdId);
         await service.from('invitation_redemptions').delete().eq('user_id',createdId);
-        await service.auth.admin.deleteUser(createdId);
+        // init_member creates a wallet immediately. A zero-balance wallet has a
+        // RESTRICT foreign key, so clean it before asking Auth to delete the
+        // unverified account. Never remove a wallet containing funds.
+        const {data:wallet}=await service.from('wallet_accounts')
+          .select('available_pence,reserved_pence').eq('user_id',createdId).maybeSingle();
+        if(wallet && wallet.available_pence===0 && wallet.reserved_pence===0){
+          const {error:walletError}=await service.from('wallet_accounts')
+            .delete().eq('user_id',createdId).eq('available_pence',0).eq('reserved_pence',0);
+          if(walletError)console.error('Unfinished registration wallet cleanup failed',{code:walletError.code});
+        }
+        const {error:deleteError}=await service.auth.admin.deleteUser(createdId);
+        if(deleteError)console.error('Unfinished registration Auth cleanup failed',{code:deleteError.code});
       }
       if(tokenHash)await service.rpc('release_invite_claim',{p_hash:tokenHash});
       throw e;

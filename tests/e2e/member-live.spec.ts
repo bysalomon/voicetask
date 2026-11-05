@@ -21,7 +21,7 @@ test('@live member: real Supabase login, allocation, audio upload, submission an
  await page.getByRole('button',{name:'Save & continue'}).click();
  await expect(page.getByText('1 saved')).toBeVisible({timeout:20000});
  await page.getByRole('button',{name:/Submit all recordings/i}).click();
- await expect(page.getByRole('heading',{name:'Under review'})).toBeVisible({timeout:20000});
+ await expect(page.getByRole('heading',{name:'Submission received'})).toBeVisible({timeout:20000});
  const service=createClient(process.env.VITE_SUPABASE_URL!,process.env.SUPABASE_SERVICE_ROLE_KEY!,{auth:{persistSession:false}});
  const {data:fixture}=await service.auth.admin.listUsers({page:1,perPage:100});
  const user=fixture.users.find(u=>u.email===process.env.E2E_TEST_EMAIL);

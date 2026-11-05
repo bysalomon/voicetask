@@ -1,0 +1,35 @@
+name: VoiceTask staging email delivery probe
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/staging-email-probe.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  resend-verified-domain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Send verification mail via live invite registration to Resend sandbox recipient
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint='https://mlypusfsxafsdnnzquek.supabase.co/functions/v1/accept-invite'
+          origin='https://voicetask-staging.vercel.app'
+          response="$(mktemp)"
+          # Resend's documented sandbox-only delivered@resend.dev test recipient.
+          # No genuine person's email address or access code is used.
+          pin="$(printf '%08d' "$((10000000 + RANDOM * 100000000 / 32768))")"
+          body="$(printf '{"pin":"%s","email":"delivered@resend.dev","country":"GB","full_name":"VoiceTask SMTP Integration Test","mobile":"+440000000000","consents":{"terms":true,"privacy":true,"data_use":true,"age_18":true}}' "$pin")"
+          status="$(curl --silent --show-error --max-time 45             --output "$response" --write-out '%{http_code}'             -X POST "$endpoint" -H "Origin: $origin"             -H 'Content-Type: application/json'             --data "$body")"
+          echo "Live tokenless staging signup: HTTP $status"
+          if [[ "$status" != 200 ]]; then
+            echo "Signup error response:"
+            cat "$response"
+            exit 1
+          fi
+          grep -q 'Please verify your email address' "$response"
+          echo "PASS: Supabase accepted tokenless signup and Resend accepted the email to its designated test recipient."
+          echo 'NOTE: This does not test human inbox delivery, clicking the verification link, or user login.'

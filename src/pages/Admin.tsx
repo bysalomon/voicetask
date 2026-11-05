@@ -32,7 +32,7 @@ async function reviewDocuments(id:string){const {data,error}=await supabase.func
  const {data,error}=await supabase.functions.invoke('admin-action',{body:{action:name,id,reason}});
  let feedback=error?.message||data?.message||'Action submitted.';
  if(error&&'context' in error&&error.context instanceof Response){
-   try{const body=await error.context.clone().json();feedback=body?.message||body?.error||feedback;}catch{}
+   try{const body=await error.context.clone().json();feedback=body?.message||body?.error||feedback;}catch{ /* Preserve the original error when response parsing fails. */ }
  }
  setMessage(feedback);
  if(!error)void qc.invalidateQueries({queryKey:['admin']});
